@@ -1,0 +1,66 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // This loads from the .env file
+}
+
+// USER MODEL
+// Handles user data for authentication and blog post authorship.
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String
+  password  String // Will be stored as a hash
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  posts     Post[]
+  comments  Comment[]
+}
+
+// POST MODEL
+// For your blog functionality.
+model Post {
+  id            String    @id @default(cuid())
+  title         String
+  slug          String    @unique
+  excerpt       String?
+  content       String    @db.Text
+  featuredImage String?
+  category      String
+  tags          String[]
+  publishedAt   DateTime  @default(now())
+  readingTime   Int
+  author        User      @relation(fields: [authorId], references: [id])
+  authorId      String
+  comments      Comment[]
+}
+
+// COMMENT MODEL
+// For user comments on blog posts.
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id])
+  postId    String
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+}
+
+// PROJECT MODEL
+// For your portfolio mini-projects.
+model Project {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @db.Text
+  imageUrl    String
+  addres      String // URL to the project
+  tags        String[]
+}
