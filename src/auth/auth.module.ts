@@ -9,6 +9,7 @@ import { JwtStrategy } from './jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './jwt-auth.guard'; // <-- Import the guard
 import { AdminGuard } from './admin.guard'; // <-- Import the admin guard
+import { TokenCleanupService } from './token-cleanup.service';
 
 @Module({
   imports: [
@@ -24,13 +25,13 @@ import { AdminGuard } from './admin.guard'; // <-- Import the admin guard
         }
         return {
           secret: secret,
-          signOptions: { expiresIn: '1h' },
+          signOptions: {}, // Remove default expiration - we handle this in the service
         };
       },
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard, AdminGuard], // <-- Add AdminGuard
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, AdminGuard, TokenCleanupService], // <-- Add TokenCleanupService
   exports: [JwtAuthGuard, AdminGuard], // <-- Also export AdminGuard
 })
 export class AuthModule {}
