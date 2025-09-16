@@ -20,6 +20,14 @@ model User {
   avatar    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  
+  // Account lockout fields for brute force protection
+  failedLoginAttempts Int      @default(0)
+  lockedUntil        DateTime?
+  
+  // Admin role for administrative privileges
+  isAdmin   Boolean  @default(false)
+  
   posts     Post[]
   comments  Comment[]
 }

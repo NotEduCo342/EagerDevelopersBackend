@@ -36,17 +36,65 @@ export class AuthService {
     return result;
   }
 
-  // New method to validate user credentials
+  // Enhanced method to validate user credentials with lockout protection
   async validateUser(loginDto: LoginDto): Promise<any> {
     const user = await this.prisma.user.findUnique({
       where: { email: loginDto.email },
     });
 
-    if (user && (await bcrypt.compare(loginDto.password, user.password))) {
-      const { password, ...result } = user;
-      return result;
+    // If user doesn't exist, return null (don't reveal this info)
+    if (!user) {
+      return null;
     }
-    return null;
+
+    // Check if account is locked
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new UnauthorizedException(
+        `Account is locked due to too many failed login attempts. Try again after ${user.lockedUntil.toISOString()}`
+      );
+    }
+
+    // Check password
+    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
+
+    if (isPasswordValid) {
+      // Password is correct - reset failed attempts and unlock account
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+        },
+      });
+
+      const { password, failedLoginAttempts, lockedUntil, ...result } = user;
+      return result;
+    } else {
+      // Password is incorrect - increment failed attempts
+      const newFailedAttempts = user.failedLoginAttempts + 1;
+      const shouldLock = newFailedAttempts >= 10;
+      
+      // Lock account for 24 hours if 10 or more failed attempts
+      const lockUntil = shouldLock 
+        ? new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
+        : user.lockedUntil;
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: newFailedAttempts,
+          lockedUntil: lockUntil,
+        },
+      });
+
+      if (shouldLock) {
+        throw new UnauthorizedException(
+          'Account has been locked for 24 hours due to too many failed login attempts.'
+        );
+      }
+
+      return null;
+    }
   }
 
   // New method to handle login and generate JWT
@@ -55,5 +103,38 @@ export class AuthService {
     return {
       access_token: this.jwtService.sign(payload),
     };
+  }
+
+  // Method to check if account is locked
+  async isAccountLocked(email: string): Promise<{ isLocked: boolean; lockedUntil?: Date; failedAttempts: number }> {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { 
+        failedLoginAttempts: true, 
+        lockedUntil: true 
+      },
+    });
+
+    if (!user) {
+      return { isLocked: false, failedAttempts: 0 };
+    }
+
+    const isLocked = user.lockedUntil && user.lockedUntil > new Date();
+    return {
+      isLocked: !!isLocked,
+      lockedUntil: user.lockedUntil || undefined,
+      failedAttempts: user.failedLoginAttempts,
+    };
+  }
+
+  // Method to manually unlock account (for admin use)
+  async unlockAccount(email: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { email },
+      data: {
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
   }
 }

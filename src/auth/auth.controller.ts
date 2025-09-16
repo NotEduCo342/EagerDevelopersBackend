@@ -14,6 +14,8 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard'; // <-- Import the guard
+import { AdminGuard } from './admin.guard'; // <-- Import the admin guard
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('auth')
 export class AuthController {
@@ -35,11 +37,20 @@ export class AuthController {
   }
 
   // 👇 --- NEW PROTECTED ROUTE --- 👇
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   getProfile(@Request() req) {
     // Because of JwtAuthGuard, the `req.user` object is populated
     // with the user data returned from JwtStrategy's validate() method.
     return req.user;
+  }
+
+  // 👇 --- ADMIN ONLY: ACCOUNT LOCKOUT STATUS CHECK --- 👇
+  @ApiBearerAuth()
+  @UseGuards(AdminGuard)
+  @Post('check-lockout')
+  async checkLockoutStatus(@Body() body: { email: string }) {
+    return this.authService.isAccountLocked(body.email);
   }
 }
