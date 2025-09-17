@@ -26,10 +26,20 @@ async function bootstrap() {
   }));
 
   app.useGlobalPipes(new ValidationPipe());
+  
+  // Set global API prefix
+  app.setGlobalPrefix('api');
 
-  // --- ENABLE DYNAMIC CORS ---
+  // --- ENABLE DYNAMIC CORS FOR MULTIPLE PORTS ---
   app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN'),
+    origin: [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      configService.get<string>('CORS_ORIGIN') || 'http://localhost:5173'
+    ].filter(Boolean), // Remove any null/undefined values
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   // Swagger config remains the same...
