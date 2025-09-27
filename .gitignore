@@ -37,10 +37,29 @@ lerna-debug.log*
 
 # dotenv environment variable files
 .env
+.env.development
+.env.production
+.env.staging
 .env.development.local
 .env.test.local
 .env.production.local
 .env.local
+
+# Database files (if using SQLite)
+*.db
+*.sqlite
+*.sqlite3
+
+# Security and keys
+*.pem
+*.key
+*.crt
+id_rsa*
+.ssh/
+
+# PM2 files
+ecosystem.config.js.bak
+.pm2/
 
 # temp directory
 .temp

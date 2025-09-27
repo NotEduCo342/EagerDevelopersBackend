@@ -6,24 +6,42 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
-  UseGuards, // <-- Import this
-  Get,       // <-- Import this
-  Request,   // <-- Import this
-  Req,       // <-- Import this for request object
-  Res,       // <-- Import this for response object
+  UseGuards,
+  Get,
+  Request,
+  Req,
+  Res,
   BadRequestException,
-  Delete,    // <-- Import this
-  Param,     // <-- Import this
+  Delete,
+  Param,
   NotFoundException,
 } from '@nestjs/common';
 import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
+import { 
+  ApiTags, 
+  ApiOperation, 
+  ApiResponse, 
+  ApiBody, 
+  ApiBearerAuth,
+  ApiSecurity,
+  ApiHeader,
+  ApiQuery,
+  ApiParam
+} from '@nestjs/swagger';
 import { AuthService, TokenPair } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { LogoutDto } from './dto/logout.dto';
-import { JwtAuthGuard } from './jwt-auth.guard'; // <-- Import the guard
-import { AdminGuard } from './admin.guard'; // <-- Import the admin guard
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { 
+  RegisterResponseDto, 
+  LoginResponseDto, 
+  LogoutResponseDto, 
+  RefreshResponseDto,
+  TokenResponseDto 
+} from './dto/auth-response.dto';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { AdminGuard } from './admin.guard';
+import { SwaggerResponses } from '../config/swagger.config';
 import { 
   LoginThrottle, 
   RefreshThrottle, 
@@ -32,19 +50,202 @@ import {
   LogoutThrottle 
 } from './decorators/auth-throttle.decorator';
 
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @RegisterThrottle()
   @Post('register')
-  async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  @ApiOperation({
+    summary: 'Create new user account',
+    description: `
+**👤 User Registration Endpoint**
+
+Create a secure user account with email verification and password requirements.
+All passwords are hashed with bcrypt for maximum security.
+
+**✨ Features:**
+• Unique email validation
+• Strong password requirements  
+• Rate limiting protection
+• Secure password hashing
+• Instant user creation
+
+**🔐 Password Requirements:**
+• Minimum 8 characters
+• 1 uppercase letter
+• 1 lowercase letter  
+• 1 number
+• 1 special character
+    `
+  })
+  @ApiBody({ 
+    type: RegisterDto,
+    examples: {
+      developer: {
+        summary: 'Developer Account',
+        description: 'Example registration for a developer',
+        value: {
+          email: 'alice.developer@eagerdevelopers.com',
+          username: 'alice_dev',
+          password: 'DevSecure123!'
+        }
+      },
+      manager: {
+        summary: 'Project Manager Account', 
+        description: 'Example registration for a project manager',
+        value: {
+          email: 'bob.manager@eagerdevelopers.com',
+          username: 'bob_pm',
+          password: 'ProjectLead456!'
+        }
+      },
+      designer: {
+        summary: 'UI/UX Designer Account',
+        description: 'Example registration for a designer',
+        value: {
+          email: 'carol.designer@eagerdevelopers.com', 
+          username: 'carol_ux',
+          password: 'DesignFlow789!'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: '🎉 Account created successfully',
+    schema: {
+      example: {
+        user: {
+          id: 'clp9876543210',
+          email: 'alice.developer@eagerdevelopers.com',
+          username: 'alice_dev',
+          isAdmin: false,
+          avatar: null,
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          createdAt: '2024-01-15T14:30:00.000Z',
+          updatedAt: '2024-01-15T14:30:00.000Z'
+        },
+        message: 'Account created successfully. Please login to continue.'
+      }
+    }
+  })
+  @ApiResponse(SwaggerResponses.BadRequest)
+  @ApiResponse(SwaggerResponses.Conflict)
+  @ApiResponse(SwaggerResponses.TooManyRequests)
+  @ApiResponse(SwaggerResponses.InternalServerError)
+  async register(@Body() registerDto: RegisterDto): Promise<RegisterResponseDto> {
+    const user = await this.authService.register(registerDto);
+    return {
+      user,
+      message: 'Account created successfully. Please login to continue.'
+    };
   }
 
   @LoginThrottle()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Authenticate user and get access tokens',
+    description: `
+**🔐 User Authentication Endpoint**
+
+Authenticate with email/password and receive JWT tokens for API access.
+Includes device tracking and session management for enhanced security.
+
+**✨ Features:**
+• JWT access & refresh tokens
+• Device fingerprinting
+• Session tracking
+• Account lockout protection
+• Rate limiting (5 req/min)
+
+**🚀 Try it out with demo credentials:**
+• Email: demo@eagerdevelopers.com
+• Password: DemoPass123!
+    `
+  })
+  @ApiBody({ 
+    type: LoginDto,
+    examples: {
+      demoUser: {
+        summary: 'Demo User Login',
+        description: 'Use these credentials to test the API',
+        value: {
+          email: 'demo@eagerdevelopers.com',
+          password: 'DemoPass123!',
+          rememberMe: false
+        }
+      },
+      regularUser: {
+        summary: 'Regular User Login',
+        description: 'Standard login without remember me',
+        value: {
+          email: 'john.doe@example.com',
+          password: 'MySecurePass123!',
+          rememberMe: false
+        }
+      },
+      rememberMeUser: {
+        summary: 'Login with Remember Me',
+        description: 'Login with extended session (30 days)',
+        value: {
+          email: 'jane.smith@example.com',
+          password: 'SecurePassword456!',
+          rememberMe: true
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: '🎉 Login successful - tokens returned',
+    schema: {
+      example: {
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        expiresIn: 3600,
+        tokenType: 'Bearer',
+        user: {
+          id: 'clp1234567890',
+          email: 'john.doe@example.com',
+          username: 'johndoe123',
+          isAdmin: false,
+          createdAt: '2024-01-15T10:30:00.000Z'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 401,
+    description: '❌ Authentication failed',
+    schema: {
+      example: {
+        statusCode: 401,
+        message: 'Invalid credentials',
+        error: 'Unauthorized',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        path: '/auth/login'
+      }
+    }
+  })
+  @ApiResponse({
+    status: 423,
+    description: '🔒 Account locked due to failed attempts',
+    schema: {
+      example: {
+        statusCode: 423,
+        message: 'Account is locked due to too many failed login attempts. Try again in 15 minutes.',
+        error: 'Locked',
+        timestamp: '2024-01-15T10:30:00.000Z',
+        path: '/auth/login',
+        lockedUntil: '2024-01-15T10:45:00.000Z'
+      }
+    }
+  })
+  @ApiResponse(SwaggerResponses.TooManyRequests)
   async login(@Body() loginDto: LoginDto, @Req() req: ExpressRequest): Promise<TokenPair> {
     const user = await this.authService.validateUser(loginDto);
     if (!user) {

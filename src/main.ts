@@ -5,6 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config'; // <-- Import ConfigService
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet'; // <-- Import Helmet
+import { setupSwagger } from './config/swagger.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -30,28 +31,40 @@ async function bootstrap() {
   // Set global API prefix
   app.setGlobalPrefix('api');
 
-  // --- ENABLE DYNAMIC CORS FOR MULTIPLE PORTS ---
+  // --- PRODUCTION-AWARE CORS CONFIGURATION ---
+  const isProduction = configService.get<string>('NODE_ENV') === 'production';
+  
   app.enableCors({
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      configService.get<string>('CORS_ORIGIN') || 'http://localhost:5173'
-    ].filter(Boolean), // Remove any null/undefined values
+    origin: isProduction 
+      ? [
+          'https://eagerdevelopers.ir',           // Your frontend domain
+          'https://www.eagerdevelopers.ir',       // Frontend with www
+          'https://api.eagerdevelopers.ir',       // API domain (for testing)
+          configService.get<string>('CORS_ORIGIN')
+        ].filter(Boolean)
+      : [
+          'http://localhost:5173',                // Vite dev server
+          'http://localhost:5174',                // Alternative Vite port
+          'http://localhost:3000',                // React dev server
+          'http://127.0.0.1:5173',               // Alternative localhost
+          configService.get<string>('CORS_ORIGIN') || 'http://localhost:5173'
+        ].filter(Boolean),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // Swagger config remains the same...
-  const config = new DocumentBuilder()
-    .setTitle('EagerDevelopers API')
-    .setDescription('The official API for the EagerDevelopers portfolio and blog.')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api-docs', app, document);
+  // --- CONDITIONAL SWAGGER (Only in development) ---
+  if (!isProduction) {
+    setupSwagger(app);
+    console.log('📚 Swagger UI available at: http://localhost:3000/api/docs');
+  } else {
+    console.log('🔒 Swagger disabled in production for security');
+  }
 
-  await app.listen(3000);
+  const port = configService.get<number>('PORT') || 3000;
+  await app.listen(port);
+  
+  console.log(`🚀 Server running on port ${port} in ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
 }
 bootstrap();
